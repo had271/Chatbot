@@ -4,7 +4,6 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-st.title("Chef assistant")
 api_key = os.environ.get("OPENROUTER_API_KEY")
 
 client = OpenAI(
@@ -12,7 +11,49 @@ client = OpenAI(
     api_key=api_key,
 )
 MODEL = "openai/gpt-4o-mini"
-
+st.title("Chef assistant")
+#  CSS style
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background-color: #eafaf1;
+    }
+    .main-title {
+        text-align: center;
+        color: #1b5e20;
+        font-size: 42px;
+        font-weight: bold;
+        margin-bottom: 0px;
+    }
+    .sub-title {
+        text-align: center;
+        color: #388e3c;
+        font-size: 18px;
+        margin-bottom: 25px;
+    }
+    section[data-testid="stSidebar"] {
+        background-color: #d7f2dc;
+    }
+    .stChatMessage {
+        border-radius: 15px;
+        padding: 8px;
+    }
+    button[kind="primary"] {
+        background-color: #4caf50 !important;
+        border-radius: 10px !important;
+    }
+    .stChatInputContainer {
+        border: 1px solid #a5d6a7;
+        border-radius: 12px;
+    }
+    hr {
+        border: 1px solid #a5d6a7;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 # Initialize chat history
 if "messages" not in st.session_state:
     st.session_state.messages = []
