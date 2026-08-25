@@ -1,99 +1,133 @@
 import streamlit as st
-from openai import OpenAI
-import os 
+from openai import OpenAI, APIError, APIConnectionError, RateLimitError
+import os
 from dotenv import load_dotenv
+from pathlib import Path
 
 load_dotenv()
+
+#  ICON SVG 
+ICON_CHEF_HAT = """
+<svg class="header-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M8 21h8M9 21v-4h6v4M7 10.5c-1.657 0-3-1.343-3-3a3 3 0 0 1 3.14-3C7.55 2.6 9.6 1 12 1s4.45 1.6 4.86 3.5A3 3 0 0 1 20 7.5c0 1.657-1.343 3-3 3M7 10.5c0 3 1.5 5.5 5 5.5s5-2.5 5-5.5M7 10.5h10"
+        stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+"""
+st.set_page_config(
+    page_title="Chef Assistant",
+    page_icon=ICON_CHEF_HAT,
+    layout="centered",
+)
+st.markdown(
+    """
+    <style>
+    .new-chat-container {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: 10px;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+st.markdown('<div class="new-chat-container">', unsafe_allow_html=True)
+
+if st.button("محادثة جديدة"):
+    st.session_state.messages = []
+    st.rerun()
+
+st.markdown('</div>', unsafe_allow_html=True)
+def load_css(file_path: str):
+    css_path = Path(file_path)
+    if css_path.exists():
+        st.markdown(f"<style>{css_path.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
+
+load_css("style.css")
+
+
+
+
+
+header_html = (
+    '<div class="header-container">'
+    + ICON_CHEF_HAT
+    + '<p class="main-title">مساعد طبخ ذكي</p>'
+    + '</div>'
+    + '<p class="sub-title">اهلا انا مساعدك الشخصي اسألني عن وصفات، مكونات، أو نصائح للطبخ</p>'
+)
+st.markdown(header_html, unsafe_allow_html=True)
+st.markdown("---")
+
+
 api_key = os.environ.get("OPENROUTER_API_KEY")
+
+if not api_key:
+    st.error(
+        "⚠️ لم يتم العثور على مفتاح API. تأكد من ضبط متغير البيئة "
+        "`OPENROUTER_API_KEY` في ملف `.env` أو في إعدادات النشر."
+    )
+    st.stop()
 
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=api_key,
 )
 MODEL = "openai/gpt-4o-mini"
-st.title("Chef assistant")
-#  CSS style
-st.markdown(
-    """
-    <style>
-    .stApp {
-        background-color: #eafaf1;
-    }
-    .main-title {
-        text-align: center;
-        color: #1b5e20;
-        font-size: 42px;
-        font-weight: bold;
-        margin-bottom: 0px;
-    }
-    .sub-title {
-        text-align: center;
-        color: #388e3c;
-        font-size: 18px;
-        margin-bottom: 25px;
-    }
-    section[data-testid="stSidebar"] {
-        background-color: #d7f2dc;
-    }
-    .stChatMessage {
-        border-radius: 15px;
-        padding: 8px;
-    }
-    button[kind="primary"] {
-        background-color: #4caf50 !important;
-        border-radius: 10px !important;
-    }
-    .stChatInputContainer {
-        border: 1px solid #a5d6a7;
-        border-radius: 12px;
-    }
-    hr {
-        border: 1px solid #a5d6a7;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-# Initialize chat history
+
+
+system_prompt = """
+أنت "Chef Assistant"، مساعد طبخ ودود وخبير يتحدث باللغة العربية الفصحى المبسّطة (ما لم يطلب المستخدم لغة أخرى).
+
+مهامك:
+- اقتراح وصفات بناءً على المكونات المتوفرة لدى المستخدم.
+- اقتراح بدائل مناسبة للمكونات الناقصة.
+- شرح خطوات التحضير بشكل مرقّم وواضح، مع ذكر الوقت التقريبي لكل خطوة عند الإمكان.
+- تقديم نصائح طبخ عملية (حفظ، تسخين، تتبيل، تقديم).
+- سؤال المستخدم عن التفاصيل الناقصة (عدد الأشخاص، الوقت المتاح، القيود الغذائية) إذا لزم الأمر لتقديم إجابة أدق.
+
+أسلوبك:
+- ودود، مختصر، وعملي — بدون حشو.
+- استخدم نقاط أو خطوات مرقّمة عند شرح وصفة.
+- إذا سُئلت عن شيء خارج نطاق الطبخ والمطبخ، وضّح بلطف أن تخصصك هو الطبخ ووجّه المستخدم بلطف.
+"""
+
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display chat messages from history on app rerun
+MAX_HISTORY_MESSAGES = 20  # يحدّ من نمو الذاكرة المرسلة للنموذج
+
 for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+    if message["role"] == "user":
+        with st.chat_message(
+            "user",
+            avatar=":material/person:"
+        ):
+            st.markdown(message["content"])
 
-system_prompt = """
-"""
+    else:
+        with st.chat_message(
+            "assistant",
+            avatar=":material/restaurant:"
+        ):
+            st.markdown(message["content"])
 
-# Accept user input
 if prompt := st.chat_input("اكتب رسالتك هنا ..."):
-    # Add user message to chat history
     st.session_state.messages.append({"role": "user", "content": prompt})
-    # Display user message
-    with st.chat_message("user"):
-      st.markdown(prompt)
-    # Create messages for API
-    messages = [
-        {
-            "role": "system",
-            "content": system_prompt
-        }
-    ]
-    messages.extend(st.session_state.messages)
-    
-    # Generate response
-    with st.chat_message("assistant"):
-        response = client.chat.completions.create(
-            model=MODEL,
-            messages=messages,
-            temperature=0.3
-        )
-        answer = response.choices[0].message.content
-        st.markdown(answer)
+    with st.chat_message("user", avatar=":material/person:"):
+        st.markdown(prompt)
 
-    # Save assistant response
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": answer
-    })
+    messages = [{"role": "system", "content": system_prompt}]
+    messages.extend(st.session_state.messages[-MAX_HISTORY_MESSAGES:])
+
+    with st.chat_message("assistant", avatar=":material/robot:"):
+   
+            response = client.chat.completions.create(
+                    model=MODEL,
+                    messages=messages,
+                    temperature=0.3,
+                )
+            answer = response.choices[0].message.content
+            st.markdown(answer)
+            st.session_state.messages.append({"role": "assistant", "content": answer})
+
