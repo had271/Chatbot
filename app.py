@@ -121,7 +121,25 @@ if prompt := st.chat_input("اكتب رسالتك هنا ..."):
     messages.extend(st.session_state.messages[-MAX_HISTORY_MESSAGES:])
 
     with st.chat_message("assistant", avatar=":material/robot:"):
-   
+        try:
+            with st.spinner("يفكر في أفضل إجابة..."):
+                response = client.chat.completions.create(
+                    model=MODEL,
+                    messages=messages,
+                    temperature=0.3,
+                )
+                answer = response.choices[0].message.content
+            st.markdown(answer)
+            st.session_state.messages.append({"role": "assistant", "content": answer})
+ 
+        except RateLimitError:
+            st.error("⏳ تم تجاوز حد الطلبات المسموح به حاليًا. حاول مرة أخرى بعد قليل.")
+        except APIConnectionError:
+            st.error("🌐 تعذّر الاتصال بالخدمة. تحقق من اتصالك بالإنترنت وحاول مجددًا.")
+        except APIError as e:
+            st.error(f"⚠️ حدث خطأ أثناء التواصل مع النموذج: {e}")
+        except Exception as e:
+            st.error(f"⚠️ حدث خطأ غير متوقع: {e}")
             response = client.chat.completions.create(
                     model=MODEL,
                     messages=messages,
